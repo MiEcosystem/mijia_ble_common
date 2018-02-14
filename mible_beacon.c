@@ -5,6 +5,7 @@
 
 #include "ccm.h"
 
+#undef  MI_LOG_MODULE_NAME
 #define MI_LOG_MODULE_NAME "MIBEACON"
 #include "mible_log.h"
 
