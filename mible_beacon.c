@@ -4,6 +4,7 @@
 #include "mible_api.h"
 #include "mi_config.h"
 
+#include "queue.h"
 #include "ccm.h"
 
 #undef  MI_LOG_MODULE_NAME
@@ -22,6 +23,7 @@ static uint8_t m_beacon_key_is_vaild;
 static uint8_t beacon_key[16];
 static mibeacon_config_t m_beacon_data;
 static bool m_beacon_timer_is_running;
+static queue_t mi_obj_queue;
 
 static struct {
 	uint8_t  mac[6];
@@ -29,60 +31,6 @@ static struct {
 	uint8_t  cnt;
 	uint8_t  rand[3];
 } beacon_nonce;
-
-/*** Ring buffer ***/
-typedef struct {
-	void * buf;
-	uint8_t mask;
-    uint8_t elem_size;
-	uint8_t rd_ptr;
-	uint8_t wr_ptr;
-} queue_t;
-
-int queue_init(queue_t *q, void *buf, uint8_t size, uint8_t elem_size)
-{
-	if (buf == NULL || q == NULL)
-		return MI_ERR_INVALID_PARAM;
-
-	if (!IS_POWER_OF_TWO(size))
-		return MI_ERR_DATA_SIZE;
-
-	q->buf = buf;
-	q->mask = size - 1;
-	q->elem_size = elem_size;
-	q->rd_ptr = 0;
-	q->wr_ptr = 0;
-
-	return MI_SUCCESS;
-}
-
-int enqueue(queue_t *q, char *in)
-{
-	if (((q->wr_ptr - q->rd_ptr) & q->mask) == q->mask) {
-		return MI_ERR_NO_MEM;
-	}
-	
-	// q->buf[q->wr_ptr++] = in;
-    memcpy((char*)q->buf + q->wr_ptr * q->elem_size, in, q->elem_size);
-    q->wr_ptr++;
-	q->wr_ptr &= q->mask;
-	
-	return MI_SUCCESS;
-}
-
-int dequeue(queue_t *q, char *out)
-{
-	if (((q->wr_ptr - q->rd_ptr) & q->mask) > 0) {
-        // *out = q->buf[q->rd_ptr++];
-        memcpy(out, (char*)q->buf + q->rd_ptr * q->elem_size, q->elem_size);
-        q->rd_ptr++;
-		q->rd_ptr &= q->mask;
-		return MI_SUCCESS;
-	} else
-		return MI_ERR_NOT_FOUND;
-}
-
-static queue_t mi_obj_queue;
 
 static int event_encode(mibeacon_obj_t *p_obj, uint8_t *output)
 {
