@@ -38,6 +38,29 @@ typedef struct {
 	uint8_t         val[17];
  } mibeacon_obj_t;
 
+typedef enum {
+	MI_EVT_BASE          = 0x0000,
+	MI_EVT_CONNECT       = 0x0001,
+	MI_EVT_SIMPLE_PAIR   = 0x0002,
+	MI_EVT_LOCK          = 0x0005,
+	MI_EVT_DOOR          = 0x0007,
+
+	MI_STA_BASE         = 0x1000,
+	MI_STA_BUTTON       = 0x1001,
+	MI_STA_SLEEP        = 0x1002,
+	MI_STA_RSSI         = 0x1003,
+	MI_STA_TEMPARATURE  = 0x1004,
+	MI_STA_WATER_BOIL   = 0x1005,
+	MI_STA_HUMIDITY     = 0x1006,
+	MI_STA_LUMINA       = 0x1007,
+	MI_STA_SOIL_PF      = 0x1008,
+	MI_STA_SOIL_EC      = 0x1009,
+	MI_STA_BATTERY      = 0x100A,
+	MI_STA_LOCK         = 0x100E,
+	MI_STA_DOOR         = 0x100F,
+
+} mibeacon_obj_name_t;
+
 typedef struct {
 	uint8_t 		connectable : 1;
 	uint8_t 		centralable : 1;
@@ -65,4 +88,7 @@ mible_status_t mible_service_data_set(mibeacon_config_t const * const config,
 
 mible_status_t mible_manu_data_set(mibeacon_config_t const * const config,
 		uint8_t *p_output, uint8_t *p_output_len);
+
+void set_beacon_key(uint8_t *p_key);
+
 #endif
