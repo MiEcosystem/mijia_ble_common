@@ -124,33 +124,35 @@ mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
 		return MI_SUCCESS;
 	}
 
-	if (p_frame_ctrl->is_encrypt == 1 && m_beacon_key_is_vaild) {
-		beacon_nonce.cnt = frame_cnt;
-		errno = mible_rand_num_generator(beacon_nonce.rand, 3);
-		
-		if (errno != MI_SUCCESS) {
-			MI_ERR_CHECK(errno);
-			return MI_ERR_INTERNAL;
-		}
+	if (p_frame_ctrl->is_encrypt == 1 ) {
+        if(m_beacon_key_is_vaild) {
+            beacon_nonce.cnt = frame_cnt;
+            errno = mible_rand_num_generator(beacon_nonce.rand, 3);
+            
+            if (errno != MI_SUCCESS) {
+                MI_ERR_CHECK(errno);
+                return MI_ERR_INTERNAL;
+            }
 
-		uint8_t mic[4];
-		uint8_t aad = 0x11;
-		uint8_t objs_len = output - p_obj_head;
-		aes_ccm_encrypt_and_tag(beacon_key,
-	                (uint8_t*)&beacon_nonce, sizeof(beacon_nonce),
-	                                   &aad, sizeof(aad),
-		               (uint8_t*)p_obj_head, objs_len,
-		               (uint8_t*)p_obj_head,
-	                                    mic, 4);
-		
-		memcpy(output, beacon_nonce.rand, 3);
-		output += 3;
+            uint8_t mic[4];
+            uint8_t aad = 0x11;
+            uint8_t objs_len = output - p_obj_head;
+            aes_ccm_encrypt_and_tag(beacon_key,
+                        (uint8_t*)&beacon_nonce, sizeof(beacon_nonce),
+                                           &aad, sizeof(aad),
+                           (uint8_t*)p_obj_head, objs_len,
+                           (uint8_t*)p_obj_head,
+                                            mic, 4);
+            
+            memcpy(output, beacon_nonce.rand, 3);
+            output += 3;
 
-		memcpy(output, mic, sizeof(mic));
-    } else {
-        p_frame_ctrl->is_encrypt = 0;
-        return MI_ERR_INTERNAL;
-	}
+            memcpy(output, mic, sizeof(mic));
+        } else {
+            p_frame_ctrl->is_encrypt = 0;
+            return MI_ERR_INTERNAL;
+        }
+    }
 
 	*output_len = len;
 
