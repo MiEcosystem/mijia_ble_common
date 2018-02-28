@@ -14,6 +14,7 @@
 #define LO_BYTE(val) (uint8_t)val
 #define HI_BYTE(val) (uint8_t)(val>>8)
 #define IS_POWER_OF_TWO(A) ( ((A) != 0) && ((((A) - 1) & (A)) == 0) )
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 typedef uint8_t mi_obj_element_t[EVT_MAX_SIZE];
 
@@ -55,14 +56,16 @@ static void mibeacon_timer_handler(void * p_context)
 {
 	uint32_t errno;
 	mi_obj_element_t elem = {0};
-    mible_gap_adv_data_t data = {0};
+    uint8_t scan_rsp_data[31];
+    uint8_t scan_rsp_dlen;
 
 	errno = dequeue(&mi_obj_queue, (void*)elem);
 
 	if (errno != NRF_SUCCESS) {
 		m_beacon_timer_is_running = false;
 		mible_timer_stop(mibeacon_timer);
-        mible_gap_adv_data_set(&data);
+		errno = mible_gap_advdata_set(NULL, 0, scan_rsp_data, 0);
+		MI_ERR_CHECK(errno);
 		MI_LOG_INFO("mibeacon event adv end.\n");
 	} else {
 		m_beacon_timer_is_running = true;
@@ -71,12 +74,14 @@ static void mibeacon_timer_handler(void * p_context)
 		mibeacon_config_t beacon_cfg = {0};
 		beacon_cfg.frame_ctrl.version = 4;
 		beacon_cfg.frame_ctrl.is_encrypt = 0;
-		beacon_cfg.pid = m_beacon_data.pid;
+		beacon_cfg.pid = PRODUCT_ID;
 		beacon_cfg.p_obj = (void*)elem;
-		mible_manu_data_set(&beacon_cfg, data.scan_rsp_data, &data.scan_rsp_len);
+        beacon_cfg.obj_num = 1;
 
+		mible_manu_data_set(&beacon_cfg, scan_rsp_data, &scan_rsp_dlen);
+        MI_LOG_HEXDUMP(scan_rsp_data, scan_rsp_dlen);
 		MI_LOG_INFO("mibeacon event adv ...\n");
-		errno = mible_gap_adv_data_set(&data);
+		errno = mible_gap_advdata_set(NULL, 0, scan_rsp_data, scan_rsp_dlen);
 		MI_ERR_CHECK(errno);
 	}
 }
@@ -89,25 +94,22 @@ void set_beacon_key(uint8_t *p_key)
 	m_beacon_key_is_vaild = 1;
 }
 
-mible_status_t mibeacon_init(uint16_t pid, uint8_t *key, uint8_t *mac)
+mible_status_t mibeacon_init(uint16_t pid, uint8_t *key)
 {
     static mi_obj_element_t obj_buf[EVT_QUEUE_SIZE];
 
     uint32_t errno;
-//	if (key == NULL || mac == NULL)
-//		return MI_ERR_INVALID_PARAM;
 
-//	beacon_nonce.pid = pid;
-//	memcpy(beacon_nonce.mac, mac, 6);
-//	memcpy(beacon_key, key, 16);
+	beacon_nonce.pid = pid;
+    if (key != NULL) set_beacon_key(key);
 
-    errno = queue_init(&mi_obj_queue, (void*) obj_buf, EVT_QUEUE_SIZE, sizeof(mi_obj_element_t));
+    errno = queue_init(&mi_obj_queue, (void*) obj_buf, ARRAY_SIZE(obj_buf), sizeof(mi_obj_element_t));
     MI_ERR_CHECK(errno);
 
     errno = mible_timer_create(&mibeacon_timer, mibeacon_timer_handler, MIBLE_TIMER_SINGLE_SHOT);
 	MI_ERR_CHECK(errno);
 
-	return MI_SUCCESS;
+	return errno;
 }
 
 /*
@@ -312,6 +314,6 @@ int mibeacon_obj_enque(mibeacon_obj_name_t evt, uint8_t len, void *val)
 		MI_ERR_CHECK(errno);
 	}
 
-	return 0;
+	return MI_SUCCESS;
 }
 

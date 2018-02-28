@@ -5,8 +5,6 @@
 #include "mible_log.h"
 #include "mible_port.h"
 #include "mible_type.h"
-#include "stdio.h"
-#include "string.h"
 
 #define MIBLE_SRV_DATA_UUID                         0XFE95
 #define MIBLE_MANUFACTURER_UUID						0X038F
@@ -78,7 +76,7 @@ typedef struct {
 	uint8_t                 obj_num;
 } mibeacon_config_t;
 
-mible_status_t mibeacon_init(uint16_t pid, uint8_t *key, uint8_t *mac);
+mible_status_t mibeacon_init(uint16_t pid, uint8_t *key);
 
 mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
 		uint8_t *p_output, uint8_t *p_output_len);
@@ -88,6 +86,8 @@ mible_status_t mible_service_data_set(mibeacon_config_t const * const config,
 
 mible_status_t mible_manu_data_set(mibeacon_config_t const * const config,
 		uint8_t *p_output, uint8_t *p_output_len);
+
+int mibeacon_obj_enque(mibeacon_obj_name_t evt, uint8_t len, void *val);
 
 void set_beacon_key(uint8_t *p_key);
 
