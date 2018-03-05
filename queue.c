@@ -1,6 +1,7 @@
 #include "mible_type.h"
 #include "queue.h"
 
+#define NULL 0
 #define IS_POWER_OF_TWO(A) ( ((A) != 0) && ((((A) - 1) & (A)) == 0) )
 
 int queue_init(queue_t *q, void *buf, char size, char elem_size)

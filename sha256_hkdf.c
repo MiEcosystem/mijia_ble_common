@@ -24,7 +24,6 @@
  *  http://csrc.nist.gov/publications/fips/fips180-2/fips180-2.pdf
  */
 
-#include "cmsis_compiler.h"
 #include "sha256_hkdf.h"
 
 #define MI_LOG_MODULE_NAME "SHA"
@@ -33,8 +32,8 @@
 #define MBEDTLS_SELF_TEST	0
 #define mbedtls_printf MI_LOG_INFO
 
-#define GET_UINT32_BE(n,b,i)  n = __REV(((uint32_t*)b)[i>>2])
-#define PUT_UINT32_BE(n,b,i)  ((uint32_t*)b)[i>>2] = __REV(n)
+//#define GET_UINT32_BE(n,b,i)  n = __REV(((uint32_t*)b)[i>>2])
+//#define PUT_UINT32_BE(n,b,i)  ((uint32_t*)b)[i>>2] = __REV(n)
 
 /* Implementation that should never be optimized out by the compiler */
 static void mbedtls_zeroize( void *v, size_t n ) {
@@ -199,8 +198,8 @@ static const uint32_t K[] =
 };
 
 #define SHR(x,n) ((x & 0xFFFFFFFF) >> n)
-#define ROTR(x,n) __ROR(x,n)
-//#define ROTR(x,n) (SHR(x,n) | (x << (32 - n)))
+//#define ROTR(x,n) __ROR(x,n)
+#define ROTR(x,n) (SHR(x,n) | (x << (32 - n)))
 #define S0(x) (ROTR(x, 7) ^ ROTR(x,18) ^  SHR(x, 3))
 #define S1(x) (ROTR(x,17) ^ ROTR(x,19) ^  SHR(x,10))
 

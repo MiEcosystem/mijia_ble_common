@@ -61,7 +61,7 @@ static void mibeacon_timer_handler(void * p_context)
 
 	errno = dequeue(&mi_obj_queue, (void*)elem);
 
-	if (errno != NRF_SUCCESS) {
+	if (errno != MI_SUCCESS) {
 		m_beacon_timer_is_running = false;
 		mible_timer_stop(mibeacon_timer);
 		errno = mible_gap_advdata_set(NULL, 0, scan_rsp_data, 0);
@@ -304,7 +304,7 @@ int mibeacon_obj_enque(mibeacon_obj_name_t evt, uint8_t len, void *val)
 
 	errno = enqueue(&mi_obj_queue, (char*)elem);
 	if(errno != MI_SUCCESS) {
-		NRF_LOG_ERROR("push beacon event errno %d\n", errno);
+		MI_LOG_ERROR("push beacon event errno %d\n", errno);
 		return MI_ERR_RESOURCES;
 	}
 
