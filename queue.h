@@ -12,7 +12,7 @@ typedef struct {
 } queue_t;
 
 int queue_init(queue_t *q, void *buf, char size, char elem_size);
-int enqueue(queue_t *q, char *in);
-int dequeue(queue_t *q, char *out);
+int enqueue(queue_t *q, void *in);
+int dequeue(queue_t *q, void *out);
 
 #endif //__QUEUE_H_

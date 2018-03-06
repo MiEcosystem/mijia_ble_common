@@ -32,9 +32,6 @@
 #define MBEDTLS_SELF_TEST	0
 #define mbedtls_printf MI_LOG_INFO
 
-//#define GET_UINT32_BE(n,b,i)  n = __REV(((uint32_t*)b)[i>>2])
-//#define PUT_UINT32_BE(n,b,i)  ((uint32_t*)b)[i>>2] = __REV(n)
-
 /* Implementation that should never be optimized out by the compiler */
 static void mbedtls_zeroize( void *v, size_t n ) {
     volatile unsigned char *p = v; while( n-- ) *p++ = 0;
@@ -198,7 +195,6 @@ static const uint32_t K[] =
 };
 
 #define SHR(x,n) ((x & 0xFFFFFFFF) >> n)
-//#define ROTR(x,n) __ROR(x,n)
 #define ROTR(x,n) (SHR(x,n) | (x << (32 - n)))
 #define S0(x) (ROTR(x, 7) ^ ROTR(x,18) ^  SHR(x, 3))
 #define S1(x) (ROTR(x,17) ^ ROTR(x,19) ^  SHR(x,10))
@@ -671,7 +667,6 @@ static const unsigned char sha256_test_sum[6][32] =
 /*
  * Checkup routine
  */
-#if 1
 int mbedtls_sha256_self_test( int verbose )
 {
     int i, j, k, buflen, ret = 0;
@@ -725,68 +720,7 @@ exit:
 
     return( ret );
 }
-#else
 
-int test_sha_and_hkdf(char argc , char *argv[] )
-{
-    int i, j, k, buflen, ret = 0;
-    unsigned char buf[1024];
-    unsigned char sha256sum[32];
-    mbedtls_sha256_context ctx;
-
-
-    int verbose = *(char *)argv[1] - '0';
-    NRF_LOG_INFO("argc is %d, argv is %d, verbose is %d \n\r", (uint32_t)argc, (uint32_t)argv[1], verbose);
-
-    mbedtls_sha256_init( &ctx );
-
-    for( i = 0; i < 6; i++ )
-    {
-        j = i % 3;
-        k = i < 3;
-
-        if( verbose != 0 )
-            mbedtls_printf( "  SHA-%d test #%d: ", 256 - k * 32, j + 1 );
-
-        mbedtls_sha256_starts( &ctx, k );
-
-        if( j == 2 )
-        {
-            memset( buf, 'a', buflen = 1000 );
-
-            for( j = 0; j < 1000; j++ )
-                mbedtls_sha256_update( &ctx, buf, buflen );
-        }
-        else
-            mbedtls_sha256_update( &ctx, sha256_test_buf[j],
-                                 sha256_test_buflen[j] );
-
-        mbedtls_sha256_finish( &ctx, sha256sum );
-
-        if( memcmp( sha256sum, sha256_test_sum[i], 32 - k * 4 ) != 0 )
-        {
-            if( verbose != 0 )
-                mbedtls_printf( "failed\n" );
-
-            ret = 1;
-            goto exit;
-        }
-
-        if( verbose != 0 )
-            mbedtls_printf( "passed\n" );
-    }
-
-    hkdf_test();
-
-    if( verbose != 0 )
-        mbedtls_printf( "\n" );
-
-exit:
-    mbedtls_sha256_free( &ctx );
-
-    return( ret );
-}
-#endif
 
 #endif /* MBEDTLS_SELF_TEST */
 

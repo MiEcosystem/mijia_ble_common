@@ -1,3 +1,4 @@
+#include <string.h>
 #include "mible_type.h"
 #include "queue.h"
 
@@ -21,7 +22,7 @@ int queue_init(queue_t *q, void *buf, char size, char elem_size)
 	return MI_SUCCESS;
 }
 
-int enqueue(queue_t *q, char *in)
+int enqueue(queue_t *q, void *in)
 {
 	if (((q->wr_ptr - q->rd_ptr) & q->mask) == q->mask) {
 		return MI_ERR_NO_MEM;
@@ -35,7 +36,7 @@ int enqueue(queue_t *q, char *in)
 	return MI_SUCCESS;
 }
 
-int dequeue(queue_t *q, char *out)
+int dequeue(queue_t *q, void *out)
 {
 	if (((q->wr_ptr - q->rd_ptr) & q->mask) > 0) {
         // *out = q->buf[q->rd_ptr++];

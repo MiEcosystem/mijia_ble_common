@@ -6,9 +6,6 @@
 #include "mible_port.h"
 #include "mible_type.h"
 
-#define MIBLE_SRV_DATA_UUID                         0XFE95
-#define MIBLE_MANUFACTURER_UUID						0X038F
-
 #define MIBLE_MAX_ADV_LENGTH						31
 
 typedef struct {
@@ -76,7 +73,7 @@ typedef struct {
 	uint8_t                 obj_num;
 } mibeacon_config_t;
 
-mible_status_t mibeacon_init(uint16_t pid, uint8_t *key);
+mible_status_t mibeacon_init(uint8_t *key);
 
 mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
 		uint8_t *p_output, uint8_t *p_output_len);

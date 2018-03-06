@@ -1,8 +1,7 @@
 #include <string.h>
-#include "mible_type.h"
 #include "mible_beacon.h"
+#include "mible_type.h"
 #include "mible_api.h"
-#include "mi_config.h"
 
 #include "queue.h"
 #include "ccm.h"
@@ -10,6 +9,16 @@
 #undef  MI_LOG_MODULE_NAME
 #define MI_LOG_MODULE_NAME "MIBEACON"
 #include "mible_log.h"
+
+#ifdef USE_MI_CONFIG
+#include "mi_config.h"
+#else
+#define EVT_MAX_SIZE           16
+#define EVT_QUEUE_SIZE         8
+#endif
+
+#define BLE_UUID_MI_SERVICE                         0XFE95
+#define BLE_UUID_COMPANY_ID_XIAOMI                  0X038F
 
 #define LO_BYTE(val) (uint8_t)val
 #define HI_BYTE(val) (uint8_t)(val>>8)
@@ -20,10 +29,9 @@ typedef uint8_t mi_obj_element_t[EVT_MAX_SIZE];
 
 static void * mibeacon_timer;
 static uint8_t frame_cnt;
-static uint8_t m_beacon_key_is_vaild;
+static volatile bool m_beacon_timer_is_running;
+static volatile uint8_t m_beacon_key_is_vaild;
 static uint8_t beacon_key[16];
-static mibeacon_config_t m_beacon_data;
-static bool m_beacon_timer_is_running;
 static queue_t mi_obj_queue;
 
 static struct {
@@ -73,8 +81,8 @@ static void mibeacon_timer_handler(void * p_context)
 
 		mibeacon_config_t beacon_cfg = {0};
 		beacon_cfg.frame_ctrl.version = 4;
-		beacon_cfg.frame_ctrl.is_encrypt = 0;
-		beacon_cfg.pid = PRODUCT_ID;
+		beacon_cfg.frame_ctrl.is_encrypt = 1;
+		beacon_cfg.pid = beacon_nonce.pid;
 		beacon_cfg.p_obj = (void*)elem;
         beacon_cfg.obj_num = 1;
 
@@ -89,21 +97,24 @@ static void mibeacon_timer_handler(void * p_context)
 
 void set_beacon_key(uint8_t *p_key)
 {
-	mible_gap_address_get(beacon_nonce.mac);
-	memcpy(beacon_key, p_key, sizeof(beacon_key));
-	m_beacon_key_is_vaild = 1;
+    if (p_key == NULL) {
+        m_beacon_key_is_vaild = 0;
+    } else {
+        mible_gap_address_get(beacon_nonce.mac);
+        memcpy(beacon_key, p_key, sizeof(beacon_key));
+        m_beacon_key_is_vaild = 1;
+    }
 }
 
-mible_status_t mibeacon_init(uint16_t pid, uint8_t *key)
+mible_status_t mibeacon_init(uint8_t *key)
 {
     static mi_obj_element_t obj_buf[EVT_QUEUE_SIZE];
 
-    uint32_t errno;
+    mible_status_t errno;
 
-	beacon_nonce.pid = pid;
     if (key != NULL) set_beacon_key(key);
 
-    errno = queue_init(&mi_obj_queue, (void*) obj_buf, ARRAY_SIZE(obj_buf), sizeof(mi_obj_element_t));
+    errno = queue_init(&mi_obj_queue, (void*) obj_buf, ARRAY_SIZE(obj_buf), sizeof(obj_buf[0]));
     MI_ERR_CHECK(errno);
 
     errno = mible_timer_create(&mibeacon_timer, mibeacon_timer_handler, MIBLE_TIMER_SINGLE_SHOT);
@@ -128,13 +139,13 @@ mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
 	mibeacon_frame_ctrl_t *p_frame_ctrl = (void*)output;
 	uint8_t len, *p_obj_head, *head = output;
 	uint32_t errno;
-    
-    m_beacon_data = *config;
 	
     if (config == NULL || output == NULL || output_len == NULL) {
 		*output_len = 0;
 		return MI_ERR_INVALID_PARAM;
 	}
+
+    beacon_nonce.pid = config->pid;
 
 	/*  encode frame_ctrl and product_id */
 	memcpy(output, (uint8_t*)config, 4);
@@ -237,8 +248,8 @@ mible_status_t mible_service_data_set(mibeacon_config_t const * const config,
 	}
 
 	p_output[1] = 0x16;
-	p_output[2] = LO_BYTE(MIBLE_SRV_DATA_UUID);
-	p_output[3] = HI_BYTE(MIBLE_SRV_DATA_UUID);
+	p_output[2] = LO_BYTE(BLE_UUID_MI_SERVICE);
+	p_output[3] = HI_BYTE(BLE_UUID_MI_SERVICE);
 	errno = mibeacon_data_set(config, &p_output[4], &data_len);
 	p_output[0] = 3 + data_len;
 
@@ -274,8 +285,8 @@ mible_status_t mible_manu_data_set(mibeacon_config_t const * const config,
 	}
 
 	p_output[1] = 0xFF;
-	p_output[2] = LO_BYTE(MIBLE_MANUFACTURER_UUID);
-	p_output[3] = HI_BYTE(MIBLE_MANUFACTURER_UUID);
+	p_output[2] = LO_BYTE(BLE_UUID_COMPANY_ID_XIAOMI);
+	p_output[3] = HI_BYTE(BLE_UUID_COMPANY_ID_XIAOMI);
 	errno = mibeacon_data_set(config, &p_output[4], &data_len);
 	p_output[0] = 3 + data_len;
 	
