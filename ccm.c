@@ -42,7 +42,7 @@
 
 static int aes_ecb_encrypt(const uint8_t* pKey, uint8_t* input, uint8_t* output)
 {
-	return mible_aes128_encrypt(pKey, input, 16, output);
+    return mible_aes128_encrypt(pKey, input, 16, output);
 }
 
 /* Implementation that should never be optimized out by the compiler */
@@ -300,9 +300,9 @@ int aes_ccm_auth_decrypt( const unsigned char *key,
 
 #ifdef MI_AUTOTEST
 static uint8_t k[16] = {0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
-			0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f};
+            0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f};
 static uint8_t nonce[13] = {0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
-			0x18, 0x19, 0x1a, 0x1b, 0x1c};
+            0x18, 0x19, 0x1a, 0x1b, 0x1c};
 static uint8_t p[64] = "HELLOWORLD!@#$%^helloworld123456";
 static uint8_t c[64] = {0};
 static uint8_t d[64] = {0};
@@ -315,20 +315,20 @@ void aes_ccm_test2(void)
 {
 
     aes_ccm_encrypt_and_tag(k, nonce, 12, astr, sizeof(astr), p, LEN, c, mic, 4);
-	aes_ccm_auth_decrypt(k, nonce, 12, astr, sizeof(astr), c, LEN, d, mic, 4);
+    aes_ccm_auth_decrypt(k, nonce, 12, astr, sizeof(astr), c, LEN, d, mic, 4);
 
     MI_LOG_INFO("Cipher : \n");
     MI_LOG_HEXDUMP(c, LEN);
     MI_LOG_INFO("MIC : \n");
     MI_LOG_HEXDUMP(mic, sizeof(mic));
 
-	MI_LOG_DEBUG("AES128-CCM TEST: ");
-	if(memcmp(d, p, LEN) == 0) {
-		MI_LOG_PRINTF(" PASS \n");
-	}
-	else {
-		MI_LOG_PRINTF(" FAIL \n");
-	}
-	
+    MI_LOG_DEBUG("AES128-CCM TEST: ");
+    if(memcmp(d, p, LEN) == 0) {
+        MI_LOG_PRINTF(" PASS \n");
+    }
+    else {
+        MI_LOG_PRINTF(" FAIL \n");
+    }
+    
 }
 #endif

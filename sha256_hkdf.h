@@ -28,13 +28,13 @@
 #include <stdint.h>
 
 //#ifndef size_t
-//	typedef unsigned int size_t;
+//  typedef unsigned int size_t;
 //#endif
 //#ifndef uint32_t
 //typedef unsigned int uint32_t;
 //#endif
 //#ifndef NULL
-//#define NULL 	0
+//#define NULL  0
 //#endif
 
 
@@ -108,7 +108,7 @@ void mbedtls_sha256_finish( mbedtls_sha256_context *ctx, unsigned char output[32
 void mbedtls_sha256_process( mbedtls_sha256_context *ctx, const unsigned char data[64] );
 
 unsigned int sha256_hkdf(unsigned char *key, unsigned int key_len,unsigned char *salt, unsigned int salt_len,
-						unsigned char *info, unsigned int info_len, unsigned char *out, unsigned int out_len);
+                        unsigned char *info, unsigned int info_len, unsigned char *out, unsigned int out_len);
 
 #ifdef __cplusplus
 }

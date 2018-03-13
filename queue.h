@@ -4,11 +4,11 @@
 #include <stdint.h>
 
 typedef struct {
-	void * buf;
-	uint8_t mask;
+    void * buf;
+    uint8_t mask;
     uint8_t elem_size;
-	uint8_t rd_ptr;
-	uint8_t wr_ptr;
+    uint8_t rd_ptr;
+    uint8_t wr_ptr;
 } queue_t;
 
 int queue_init(queue_t *q, void *buf, char size, char elem_size);
