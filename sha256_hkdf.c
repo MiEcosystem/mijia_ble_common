@@ -603,12 +603,12 @@ void hkdf_test(void)
 
     sha256_hkdf(key_material,sizeof(key_material),salt,sizeof(salt),info,sizeof(info),out_key,82);
 
-    NRF_LOG_INFO("SHA256-HKDF TEST: ");
+    MI_LOG_INFO("SHA256-HKDF TEST: ");
     if (memcmp(expect, out_key, 82) == 0) {
-        NRF_LOG_RAW_INFO(" PASS\n");
+        MI_LOG_PRINTF(" PASS\n");
     }
     else {
-        NRF_LOG_RAW_INFO(" FAIL\n");
+        MI_LOG_PRINTF(" FAIL\n");
     }
 
 }
