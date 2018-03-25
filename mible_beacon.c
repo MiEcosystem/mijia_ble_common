@@ -79,12 +79,13 @@ static void mibeacon_timer_handler(void * p_context)
         m_beacon_timer_is_running = true;
         mible_timer_start(mibeacon_timer, 3000, NULL);
 
-        mibeacon_config_t beacon_cfg = {0};
-        beacon_cfg.frame_ctrl.version = 4;
-        beacon_cfg.frame_ctrl.is_encrypt = 1;
-        beacon_cfg.pid = beacon_nonce.pid;
-        beacon_cfg.p_obj = (void*)elem;
-        beacon_cfg.obj_num = 1;
+        mibeacon_config_t beacon_cfg = {
+        	.frame_ctrl.version = 4,
+        	.frame_ctrl.is_encrypt = 1,
+        	.pid = beacon_nonce.pid,
+        	.p_obj = (void*)elem,
+        	.obj_num = 1,
+        };
 
         mible_manu_data_set(&beacon_cfg, scan_rsp_data, &scan_rsp_dlen);
         MI_LOG_HEXDUMP(scan_rsp_data, scan_rsp_dlen);

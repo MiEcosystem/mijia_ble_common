@@ -119,12 +119,12 @@ uint32_t soft_crc32(const void *buf, size_t size, uint32_t crc)
     return crc ^ ~0U;
 }
 
-void mbedtls_sha256_init( mbedtls_sha256_context *ctx )
+__WEAK void mbedtls_sha256_init( mbedtls_sha256_context *ctx )
 {
     memset( ctx, 0, sizeof( mbedtls_sha256_context ) );
 }
 
-void mbedtls_sha256_free( mbedtls_sha256_context *ctx )
+__WEAK void mbedtls_sha256_free( mbedtls_sha256_context *ctx )
 {
     if( ctx == NULL )
         return;
@@ -132,7 +132,7 @@ void mbedtls_sha256_free( mbedtls_sha256_context *ctx )
     mbedtls_zeroize( ctx, sizeof( mbedtls_sha256_context ) );
 }
 
-void mbedtls_sha256_clone( mbedtls_sha256_context *dst,
+__WEAK void mbedtls_sha256_clone( mbedtls_sha256_context *dst,
                            const mbedtls_sha256_context *src )
 {
     *dst = *src;
@@ -141,7 +141,7 @@ void mbedtls_sha256_clone( mbedtls_sha256_context *dst,
 /*
  * SHA-256 context setup
  */
-void mbedtls_sha256_starts( mbedtls_sha256_context *ctx, int is224 )
+__WEAK void mbedtls_sha256_starts( mbedtls_sha256_context *ctx, int is224 )
 {
     ctx->total[0] = 0;
     ctx->total[1] = 0;
@@ -218,7 +218,7 @@ static const uint32_t K[] =
     d += temp1; h = temp1 + temp2;              \
 }
 
-void mbedtls_sha256_process( mbedtls_sha256_context *ctx, const unsigned char data[64] )
+__WEAK void mbedtls_sha256_process( mbedtls_sha256_context *ctx, const unsigned char data[64] )
 {
     uint32_t temp1, temp2, W[64];
     uint32_t A[8];
@@ -276,7 +276,7 @@ void mbedtls_sha256_process( mbedtls_sha256_context *ctx, const unsigned char da
 /*
  * SHA-256 process buffer
  */
-void mbedtls_sha256_update( mbedtls_sha256_context *ctx, const unsigned char *input,
+__WEAK void mbedtls_sha256_update( mbedtls_sha256_context *ctx, const unsigned char *input,
                     size_t ilen )
 {
     size_t fill;
@@ -325,7 +325,7 @@ static const unsigned char sha256_padding[64] =
 /*
  * SHA-256 final digest
  */
-void mbedtls_sha256_finish( mbedtls_sha256_context *ctx, unsigned char output[32] )
+__WEAK void mbedtls_sha256_finish( mbedtls_sha256_context *ctx, unsigned char output[32] )
 {
     uint32_t last, padn;
     uint32_t high, low;
@@ -359,7 +359,7 @@ void mbedtls_sha256_finish( mbedtls_sha256_context *ctx, unsigned char output[32
 /*
  * output = SHA-256( input buffer )
  */
-void mbedtls_sha256( const unsigned char *input, size_t ilen,
+__WEAK void mbedtls_sha256( const unsigned char *input, size_t ilen,
              unsigned char output[32], int is224 )
 {
     mbedtls_sha256_context ctx;
