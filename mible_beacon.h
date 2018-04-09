@@ -17,7 +17,7 @@ typedef struct {
     uint8_t         mac_include         :1;
     uint8_t         cap_include         :1;
     uint8_t         obj_include         :1;
-    uint8_t         reserved3           :1;
+    uint8_t         mesh                :1;
 
     uint8_t         reserved4           :1;
     uint8_t         bond_confirm        :1;
@@ -57,20 +57,46 @@ typedef enum {
 } mibeacon_obj_name_t;
 
 typedef struct {
-    uint8_t         connectable : 1;
-    uint8_t         centralable : 1;
-    uint8_t         encryptable : 1;
-    uint8_t         bondAbility : 2;
-    uint8_t         reserved    : 3;
+    uint8_t         connectable  :1;
+    uint8_t         centralable  :1;
+    uint8_t         encryptable  :1;
+    uint8_t         bondAbility  :2;
+    uint8_t         IO_capability:1;
+    uint8_t         reserved     :2;
 } mibeacon_capability_t;
+
+typedef struct {
+    uint8_t in_digits            :1;
+    uint8_t in_alphabet          :1;
+    uint8_t in_nfc_tag           :1;
+    uint8_t in_image             :1;
+    uint8_t out_digits           :1;
+    uint8_t out_alphabet         :1;
+    uint8_t out_nfc_tag          :1;
+    uint8_t out_image            :1;
+
+    uint8_t reserved             :8;
+} mibeacon_cap_sub_io_t;
+
+typedef struct {
+    uint8_t         pb_adv       :1;
+    uint8_t         pb_gatt      :1;
+    uint8_t         is_auth      :1;
+    uint8_t         is_prov      :1;
+    uint8_t         version      :4;
+
+    uint8_t         reserved     :8;
+} mibeacon_mesh_t;
 
 typedef struct {
     mibeacon_frame_ctrl_t   frame_ctrl;
     uint16_t                pid;
     mible_addr_t           *p_mac;
     mibeacon_capability_t  *p_capability;
+    mibeacon_cap_sub_io_t  *p_cap_sub_IO;
     mibeacon_obj_t         *p_obj;
     uint8_t                 obj_num;
+    mibeacon_mesh_t        *p_mesh;
 } mibeacon_config_t;
 
 mible_status_t mibeacon_init(uint8_t *key);

@@ -24,6 +24,11 @@
 #define HI_BYTE(val) (uint8_t)(val>>8)
 #define IS_POWER_OF_TWO(A) ( ((A) != 0) && ((((A) - 1) & (A)) == 0) )
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+#define CHECK_ADV_LEN(len)                                                     \
+    do {                                                                       \
+        if ((len) > MIBLE_MAX_ADV_LENGTH)                                      \
+        return MI_ERR_DATA_SIZE;                                               \
+    } while(0)
 
 typedef uint8_t mi_obj_element_t[EVT_MAX_SIZE];
 
@@ -52,7 +57,12 @@ static int event_encode(mibeacon_obj_t *p_obj, uint8_t *output)
 
 static int calc_objs_bytes(mibeacon_obj_t *p_obj, uint8_t num)
 {
+    // 3 = 2 bytes object ID + 1 byte length
     uint8_t sum = num * 3;
+
+    if (p_obj == NULL)
+        return 0;
+
     for (uint8_t i = 0; i < num; i++)
         sum += p_obj[i].len;
 
@@ -166,33 +176,37 @@ mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
     /*  encode capability */
     if (config->p_capability != NULL) {
         p_frame_ctrl->cap_include = 1;
-        memcpy(output, config->p_capability, 1);
+        mibeacon_capability_t *p_cap = (void*)output;
         output += 1;
+        *p_cap = *config->p_capability;
+        if (config->p_cap_sub_IO != NULL) {
+            p_cap->IO_capability = 1;
+            memcpy(output, config->p_cap_sub_IO, sizeof(mibeacon_cap_sub_io_t));
+            output += sizeof(mibeacon_cap_sub_io_t);
+        }
     }
     
     len = output - head;
-    len += calc_objs_bytes(config->p_obj, config->obj_num);
-    len += p_frame_ctrl->is_encrypt ? 7 : 0;
+    CHECK_ADV_LEN(len);
 
-    if (len > MIBLE_MAX_ADV_LENGTH)
-        return MI_ERR_DATA_SIZE;
-
+    /*  encode objects */
     if (config->p_obj != NULL) {
+        CHECK_ADV_LEN(len + calc_objs_bytes(config->p_obj, config->obj_num));
         p_frame_ctrl->obj_include = 1;
         p_obj_head = output;
         for (uint8_t i = 0, max = config->obj_num; i < max; i++) {
             event_encode(config->p_obj + i, output);
             output += 3 + config->p_obj[i].len;
         }
-    } else {
-        /* NO object need to be encrypted. */
-        len -= p_frame_ctrl->is_encrypt ? 7 : 0;
-        p_frame_ctrl->is_encrypt = 0;
-        *output_len = len;
-        return MI_SUCCESS;
+        len = output - head;
+
     }
 
+    /* encrypt objects and encode Nonce, MIC */
     if (p_frame_ctrl->is_encrypt == 1 ) {
+        // 7 = 3 bytes random + 4 bytes MIC
+        CHECK_ADV_LEN(len + 7);
+
         if(m_beacon_key_is_vaild) {
             beacon_nonce.cnt = frame_cnt;
             errno = mible_rand_num_generator(beacon_nonce.rand, 3);
@@ -213,13 +227,23 @@ mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
                                             mic, 4);
             
             memcpy(output, beacon_nonce.rand, 3);
-            output += 3;
+            output += sizeof(beacon_nonce.rand);
 
             memcpy(output, mic, sizeof(mic));
+            output += sizeof(mic);
+            len = output - head;
         } else {
             p_frame_ctrl->is_encrypt = 0;
             return MI_ERR_INTERNAL;
         }
+    }
+
+    if (config->p_mesh != NULL) {
+        CHECK_ADV_LEN(len + sizeof(mibeacon_mesh_t));
+        p_frame_ctrl->mesh = 1;
+        memcpy(output, config->p_mesh, sizeof(mibeacon_mesh_t));
+        output += sizeof(mibeacon_mesh_t);
+        len = output - head;
     }
 
     *output_len = len;
