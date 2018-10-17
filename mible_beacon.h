@@ -94,6 +94,7 @@ typedef struct {
     mible_addr_t           *p_mac;
     mibeacon_capability_t  *p_capability;
     mibeacon_cap_sub_io_t  *p_cap_sub_IO;
+    uint8_t 			   *p_wifi_mac;
     mibeacon_obj_t         *p_obj;
     uint8_t                 obj_num;
     mibeacon_mesh_t        *p_mesh;

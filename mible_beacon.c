@@ -184,6 +184,12 @@ mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
             memcpy(output, config->p_cap_sub_IO, sizeof(mibeacon_cap_sub_io_t));
             output += sizeof(mibeacon_cap_sub_io_t);
         }
+        /*	encode WIFI mac address */
+		if(config->p_wifi_mac != NULL){
+			p_cap->bondAbility = 3;
+			memcpy(output,config->p_wifi_mac,2);
+			output += 2;
+		}
     }
     
     len = output - head;
