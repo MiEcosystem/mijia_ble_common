@@ -75,7 +75,7 @@ static void mibeacon_timer_handler(void * p_context)
     uint32_t errno;
     mi_obj_element_t elem = {0};
     uint8_t scan_rsp_data[31];
-    uint8_t scan_rsp_dlen;
+    uint8_t scan_rsp_dlen = 0;
 
     errno = dequeue(&mi_obj_queue, (void*)elem);
 
@@ -148,7 +148,7 @@ mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
         uint8_t *output, uint8_t *output_len)
 {
     mibeacon_frame_ctrl_t *p_frame_ctrl = (void*)output;
-    uint8_t len, *p_obj_head, *head = output;
+    uint8_t len, *p_obj_head = NULL, *head = output;
     uint32_t errno;
     
     if (config == NULL || output == NULL || output_len == NULL) {
@@ -270,7 +270,7 @@ mible_status_t mible_service_data_set(mibeacon_config_t const * const config,
         uint8_t *p_output, uint8_t *p_output_len)
 {
     uint32_t errno;
-    uint8_t data_len;
+    uint8_t data_len = 0;
 
 // check input
     if(config == NULL || p_output == NULL || p_output_len == NULL){
@@ -308,7 +308,7 @@ mible_status_t mible_manu_data_set(mibeacon_config_t const * const config,
         uint8_t *p_output, uint8_t *p_output_len)
 {
     uint32_t errno;
-    uint8_t data_len;
+    uint8_t data_len = 0;
 // check input
     if(config == NULL || p_output == NULL || p_output_len == NULL){
         MI_LOG_ERROR("error parameters.\n");
