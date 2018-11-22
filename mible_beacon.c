@@ -179,17 +179,21 @@ mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
         mibeacon_capability_t *p_cap = (void*)output;
         output += 1;
         *p_cap = *config->p_capability;
+
+		/*	encode WIFI mac address */
+		if(config->p_capability->bondAbility == 3){
+			if(config->p_wifi_mac){
+				memcpy(output,config->p_wifi_mac,2);	
+				output += 2;
+			}	
+		}
+
         if (config->p_cap_sub_IO != NULL) {
             p_cap->IO_capability = 1;
             memcpy(output, config->p_cap_sub_IO, sizeof(mibeacon_cap_sub_io_t));
             output += sizeof(mibeacon_cap_sub_io_t);
         }
-        /*	encode WIFI mac address */
-		if(config->p_wifi_mac != NULL){
-			p_cap->bondAbility = 3;
-			memcpy(output,config->p_wifi_mac,2);
-			output += 2;
-		}
+
     }
     
     len = output - head;
