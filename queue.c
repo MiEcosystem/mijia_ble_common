@@ -4,16 +4,16 @@
 
 #define IS_POWER_OF_TWO(A) ( ((A) != 0) && ((((A) - 1) & (A)) == 0) )
 
-int queue_init(queue_t *q, void *buf, char size, char elem_size)
+mible_status_t queue_init(queue_t *q, void *buf, char queue_size, char elem_size)
 {
     if (buf == NULL || q == NULL)
         return MI_ERR_INVALID_PARAM;
 
-    if (!IS_POWER_OF_TWO(size))
+    if (!IS_POWER_OF_TWO(queue_size))
         return MI_ERR_DATA_SIZE;
 
     q->buf = buf;
-    q->mask = size - 1;
+    q->mask = queue_size - 1;
     q->elem_size = elem_size;
     q->rd_ptr = 0;
     q->wr_ptr = 0;
@@ -21,7 +21,7 @@ int queue_init(queue_t *q, void *buf, char size, char elem_size)
     return MI_SUCCESS;
 }
 
-int enqueue(queue_t *q, void *in)
+mible_status_t enqueue(queue_t *q, void *in)
 {
     if (((q->wr_ptr - q->rd_ptr) & q->mask) == q->mask) {
         return MI_ERR_NO_MEM;
@@ -35,7 +35,7 @@ int enqueue(queue_t *q, void *in)
     return MI_SUCCESS;
 }
 
-int dequeue(queue_t *q, void *out)
+mible_status_t dequeue(queue_t *q, void *out)
 {
     if (((q->wr_ptr - q->rd_ptr) & q->mask) > 0) {
         /* *out = q->buf[q->rd_ptr++]; */

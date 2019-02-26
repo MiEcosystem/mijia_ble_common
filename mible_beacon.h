@@ -27,18 +27,13 @@ typedef struct {
     uint8_t         version             :4;
 } mibeacon_frame_ctrl_t;
 
-typedef struct {
-    uint16_t        type;
-    uint8_t         len;
-    uint8_t         val[17];
- } mibeacon_obj_t;
 
 typedef enum {
     MI_EVT_BASE          = 0x0000,
     MI_EVT_CONNECT       = 0x0001,
     MI_EVT_SIMPLE_PAIR   = 0x0002,
-    MI_EVT_LOCK          = 0x0005,
     MI_EVT_DOOR          = 0x0007,
+    MI_EVT_LOCK          = 0x000B,
 
     MI_STA_BASE         = 0x1000,
     MI_STA_BUTTON       = 0x1001,
@@ -55,6 +50,12 @@ typedef enum {
     MI_STA_DOOR         = 0x100F,
 
 } mibeacon_obj_name_t;
+typedef struct {
+    uint16_t        type;
+    uint8_t         len;
+    uint8_t         _pad;
+    uint8_t         val[12];
+ } mibeacon_obj_t;
 
 typedef struct {
     uint8_t         connectable  :1;
@@ -81,8 +82,7 @@ typedef struct {
 typedef struct {
     uint8_t         pb_adv       :1;
     uint8_t         pb_gatt      :1;
-    uint8_t         is_auth      :1;
-    uint8_t         is_prov      :1;
+    uint8_t         state        :2;
     uint8_t         version      :4;
 
     uint8_t         reserved     :8;
