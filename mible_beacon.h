@@ -39,7 +39,7 @@ typedef enum {
     MI_STA_BUTTON       = 0x1001,
     MI_STA_SLEEP        = 0x1002,
     MI_STA_RSSI         = 0x1003,
-    MI_STA_TEMPARATURE  = 0x1004,
+    MI_STA_TEMPERATURE  = 0x1004,
     MI_STA_WATER_BOIL   = 0x1005,
     MI_STA_HUMIDITY     = 0x1006,
     MI_STA_LUMINA       = 0x1007,

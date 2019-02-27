@@ -74,9 +74,9 @@ static void mibeacon_timer_handler(void * p_context)
     uint32_t errno;
     uint8_t len;
     mibeacon_frame_ctrl_t fctrl = {
-        .secure_auth    = 1,
         .version        = 4,
     };
+
     mible_addr_t dev_mac;
     mible_gap_address_get(dev_mac);
 
@@ -89,37 +89,35 @@ static void mibeacon_timer_handler(void * p_context)
     mibeacon_obj_t obj = {0};
     errno = dequeue(&mi_obj_queue, &obj);
 
-    uint8_t adv_data[31];
-    uint8_t adv_dlen;
-    adv_data[0] = 0x02;
-    adv_data[1] = 0x01;
-    adv_data[2] = 0x06;
-    adv_dlen    = 3;
+    uint8_t adv_data[31] = {2, 1, 6};
+    uint8_t adv_dlen     = 3;
+
     if (errno != MI_SUCCESS) {
-        m_beacon_timer_is_running = false;
         mible_timer_stop(mibeacon_timer);
+        m_beacon_timer_is_running = false;
         mible_service_data_set(&beacon_cfg, adv_data + 3, &len);
         adv_dlen += len;
+
         errno = mible_gap_adv_data_set(adv_data, adv_dlen, adv_data, 0);
         MI_ERR_CHECK(errno);
-        MI_LOG_INFO("End adv mibeacon event.\n");
+        MI_LOG_INFO("no more mibeacon obj.\n");
     } else {
-        m_beacon_timer_is_running = true;
         mible_timer_start(mibeacon_timer, EVT_ADV_TIMEOUT_MS, NULL);
 
         uint8_t scan_rsp_data[31];
         uint8_t scan_rsp_dlen;
         mible_manu_data_set(&beacon_cfg, scan_rsp_data, &scan_rsp_dlen);
 
-        beacon_cfg.frame_ctrl.is_encrypt = 1;
+        beacon_cfg.frame_ctrl.is_encrypt = 0;
         beacon_cfg.p_mac   = NULL;
         beacon_cfg.p_obj   = &obj;
         beacon_cfg.obj_num = 1;
         mible_service_data_set(&beacon_cfg, adv_data + 3, &len);
+
         adv_dlen += len;
-        MI_LOG_INFO("Begin adv mibeacon event ...\n");
         errno = mible_gap_adv_data_set(adv_data, adv_dlen, scan_rsp_data, scan_rsp_dlen);
         MI_ERR_CHECK(errno);
+        MI_LOG_INFO("send mibeacon obj 0x%04X\n", obj.type);
     }
 }
 
@@ -374,6 +372,10 @@ int mibeacon_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val)
         /* All event will be processed in mibeacon_timer_handler() */
         errno = mible_timer_start(mibeacon_timer, 10, NULL);
         MI_ERR_CHECK(errno);
+        if (errno != MI_SUCCESS)
+            return MI_ERR_INTERNAL;
+        else
+            m_beacon_timer_is_running = true;
     }
 
     return MI_SUCCESS;
