@@ -77,6 +77,12 @@ static void mibeacon_timer_handler(void * p_context)
         .version        = 4,
     };
 
+    mibeacon_capability_t cap = {
+            .connectable = 1,
+            .encryptable = 1,
+            .bondAbility = 1
+    };
+
     mible_addr_t dev_mac;
     mible_gap_address_get(dev_mac);
 
@@ -84,6 +90,7 @@ static void mibeacon_timer_handler(void * p_context)
         .frame_ctrl     = fctrl,
         .pid            = beacon_nonce.pid,
         .p_mac          = &dev_mac,
+        .p_capability   = &cap
     };
 
     mibeacon_obj_t obj = {0};
@@ -108,8 +115,9 @@ static void mibeacon_timer_handler(void * p_context)
         uint8_t scan_rsp_dlen;
         mible_manu_data_set(&beacon_cfg, scan_rsp_data, &scan_rsp_dlen);
 
-        beacon_cfg.frame_ctrl.is_encrypt = 0;
+        beacon_cfg.frame_ctrl.is_encrypt = 1;
         beacon_cfg.p_mac   = NULL;
+        beacon_cfg.p_capability = NULL;
         beacon_cfg.p_obj   = &obj;
         beacon_cfg.obj_num = 1;
         mible_service_data_set(&beacon_cfg, adv_data + 3, &len);
