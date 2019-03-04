@@ -111,20 +111,36 @@ static void mibeacon_timer_handler(void * p_context)
     } else {
         mible_timer_start(mibeacon_timer, EVT_ADV_TIMEOUT_MS, NULL);
 
-        uint8_t scan_rsp_data[31];
-        uint8_t scan_rsp_dlen;
-        mible_manu_data_set(&beacon_cfg, scan_rsp_data, &scan_rsp_dlen);
-
-        beacon_cfg.frame_ctrl.is_encrypt = 1;
-        beacon_cfg.p_mac   = NULL;
+        // encode adv packet.
+        if (obj.need_encrypt) {
+            beacon_cfg.frame_ctrl.is_encrypt = 1;
+            beacon_cfg.p_mac = obj.len > 3 ? NULL : &dev_mac;
+        } else if (obj.len > 9) {
+            beacon_cfg.p_mac = NULL;
+        }
         beacon_cfg.p_capability = NULL;
-        beacon_cfg.p_obj   = &obj;
-        beacon_cfg.obj_num = 1;
-        mible_service_data_set(&beacon_cfg, adv_data + 3, &len);
-
+        beacon_cfg.p_obj        = &obj;
+        beacon_cfg.obj_num      = 1;
+        errno = mible_service_data_set(&beacon_cfg, adv_data + 3, &len);
+        if (errno != MI_SUCCESS) {
+            MI_LOG_ERROR("%s MI_ERR_DATA_SIZE\n", __func__);
+            return;
+        }
         adv_dlen += len;
+
+        // encode scan response packet.
+        uint8_t scan_rsp_data[31];
+        uint8_t scan_rsp_dlen = 0;
+        if (beacon_cfg.p_mac == NULL) {
+            beacon_cfg.frame_ctrl.is_encrypt = 0;
+            beacon_cfg.p_mac        = &dev_mac;
+            beacon_cfg.p_capability = &cap;
+            mible_manu_data_set(&beacon_cfg, scan_rsp_data, &scan_rsp_dlen);
+        }
+
         errno = mible_gap_adv_data_set(adv_data, adv_dlen, scan_rsp_data, scan_rsp_dlen);
         MI_ERR_CHECK(errno);
+
         MI_LOG_INFO("send mibeacon obj 0x%04X\n", obj.type);
     }
 }
@@ -368,6 +384,7 @@ int mibeacon_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val)
 
     obj.type = nm;
     obj.len  = len;
+    obj.need_encrypt = 1;
     memcpy(obj.val, (uint8_t*)val, len);
 
     errno = enqueue(&mi_obj_queue, &obj);
@@ -389,3 +406,34 @@ int mibeacon_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val)
     return MI_SUCCESS;
 }
 
+int mibeacon_plain_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val)
+{
+    uint32_t errno;
+    mibeacon_obj_t obj;
+
+    if (len > sizeof(obj.val))
+        return MI_ERR_DATA_SIZE;
+
+    obj.type = nm;
+    obj.len  = len;
+    obj.need_encrypt = 0;
+    memcpy(obj.val, (uint8_t*)val, len);
+
+    errno = enqueue(&mi_obj_queue, &obj);
+    if(errno != MI_SUCCESS) {
+        MI_LOG_ERROR("push beacon event errno %d\n", errno);
+        return MI_ERR_RESOURCES;
+    }
+
+    if (m_beacon_timer_is_running != true ) {
+        /* All event will be processed in mibeacon_timer_handler() */
+        errno = mible_timer_start(mibeacon_timer, 10, NULL);
+        MI_ERR_CHECK(errno);
+        if (errno != MI_SUCCESS)
+            return MI_ERR_INTERNAL;
+        else
+            m_beacon_timer_is_running = true;
+    }
+
+    return MI_SUCCESS;
+}

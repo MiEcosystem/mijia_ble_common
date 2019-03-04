@@ -53,7 +53,7 @@ typedef enum {
 typedef struct {
     uint16_t        type;
     uint8_t         len;
-    uint8_t         _pad;
+    uint8_t         need_encrypt;
     uint8_t         val[12];
  } mibeacon_obj_t;
 
@@ -111,8 +111,8 @@ mible_status_t mible_service_data_set(mibeacon_config_t const * const config,
 mible_status_t mible_manu_data_set(mibeacon_config_t const * const config,
         uint8_t *p_output, uint8_t *p_output_len);
 
-int mibeacon_obj_enque(mibeacon_obj_name_t evt, uint8_t len, void *val);
-
+int mibeacon_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val);
+int mibeacon_plain_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val);
 void set_beacon_key(uint8_t *p_key);
 
 #endif
