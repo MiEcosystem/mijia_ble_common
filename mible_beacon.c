@@ -19,6 +19,7 @@
 
 #define BLE_UUID_MI_SERVICE                         0xFE95
 #define BLE_UUID_COMPANY_ID_XIAOMI                  0x038F
+#define REC_ID_SEQNUM                               4
 
 #define LO_BYTE(val) (uint8_t)val
 #define HI_BYTE(val) (uint8_t)(val>>8)
@@ -32,17 +33,20 @@
 
 
 static void * mibeacon_timer;
-static uint8_t frame_cnt;
+static volatile bool m_beacon_is_init;
 static volatile bool m_beacon_timer_is_running;
 static volatile bool m_beacon_key_is_vaild;
 static uint8_t beacon_key[16];
 static queue_t mi_obj_queue;
-
+static union {
+    uint8_t  byte[4];
+    uint32_t value;
+} seqnum;
 static struct {
     uint8_t  mac[6];
     uint16_t pid;
     uint8_t  cnt;
-    uint8_t  rand[3];
+    uint8_t  ext_cnt[3];
 } beacon_nonce;
 
 static int event_encode(mibeacon_obj_t *p_obj, uint8_t *output)
@@ -74,7 +78,8 @@ static void mibeacon_timer_handler(void * p_context)
     uint32_t errno;
     uint8_t len;
     mibeacon_frame_ctrl_t fctrl = {
-        .version        = 4,
+            .registered     = 1,
+            .version        = 5,
     };
 
     mibeacon_capability_t cap = {
@@ -155,22 +160,36 @@ void set_beacon_key(uint8_t *p_key)
         memcpy(beacon_key, p_key, sizeof(beacon_key));
         m_beacon_key_is_vaild = 1;
     }
+
+    if (m_beacon_is_init) {
+        seqnum.value = 0;
+        mible_record_write(REC_ID_SEQNUM, seqnum.byte, 4);
+    }
 }
 
 mible_status_t mibeacon_init(uint8_t *key)
 {
     static mibeacon_obj_t obj_buf[EVT_QUEUE_SIZE];
-
     mible_status_t errno;
-
-    if (key != NULL) set_beacon_key(key);
 
     errno = queue_init(&mi_obj_queue, (void*) obj_buf, ARRAY_SIZE(obj_buf), sizeof(obj_buf[0]));
     MI_ERR_CHECK(errno);
 
-    errno = mible_timer_create(&mibeacon_timer, mibeacon_timer_handler, MIBLE_TIMER_SINGLE_SHOT);
-    MI_ERR_CHECK(errno);
+    if (mibeacon_timer == NULL)
+        mible_timer_create(&mibeacon_timer, mibeacon_timer_handler, MIBLE_TIMER_SINGLE_SHOT);
 
+    set_beacon_key(key);
+
+    if (key != NULL &&
+        mible_record_read(REC_ID_SEQNUM, seqnum.byte, 4) == MI_SUCCESS) {
+        seqnum.value += 512;
+        errno = mible_record_write(REC_ID_SEQNUM, seqnum.byte, 4);
+        MI_ERR_CHECK(errno);
+    }
+
+    MI_LOG_DEBUG("init mibeacon with SEQNUM: %d\n", seqnum.value);
+
+    m_beacon_is_init = 1;
     return errno;
 }
 
@@ -179,7 +198,7 @@ mible_status_t mibeacon_init(uint8_t *key)
  * @param   [in] config: mibeacon configure data 
  *          [out] p_output: pointer to mibeacon data  (watch out array out of bounds) 
  *          [out] p_output_len: pointer to mibeacon data length 
- * @return  MI_ERR_INVALID_PARAM:   Invalid pointer supplied or mismatched frmctl.  
+ * @return  MI_ERR_INVALID_PARAM:   Invalid pointer supplied or mismatched frame_ctrl.
  *          MI_ERR_INVALID_LENGTH:  Adv data length exceeds MIBLE_MAX_ADV_LENGTH-7.
  *          MI_ERR_INTERNAL:        Not found rand num used to encrypt data.
  *          MI_SUCCESS:             Set successfully.
@@ -189,7 +208,7 @@ mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
 {
     mibeacon_frame_ctrl_t *p_frame_ctrl = (void*)output;
     uint8_t len, *p_obj_head = NULL, *head = output;
-    uint32_t errno;
+    uint32_t errno = 0;
     
     if (config == NULL || output == NULL || output_len == NULL) {
         return MI_ERR_INVALID_PARAM;
@@ -197,12 +216,17 @@ mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
 
     beacon_nonce.pid = config->pid;
 
+    if (++seqnum.value % 512 == 0)
+        mible_record_write(REC_ID_SEQNUM, seqnum.byte, 4);
+
+    MI_LOG_DEBUG("mibeacon - SEQNUM: %d\n", seqnum.value);
+
     /*  encode frame_ctrl and product_id */
     memcpy(output, (uint8_t*)config, 4);
     output     += 4;
 
     /*  encode frame cnt */
-    output[0] = (uint8_t) ++frame_cnt;
+    output[0] = (uint8_t) seqnum.value;
     output   += 1;
 
     /*  encode gap mac */
@@ -219,13 +243,13 @@ mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
         output += 1;
         *p_cap = *config->p_capability;
 
-		/*	encode WIFI mac address */
-		if(config->p_capability->bondAbility == 3){
-			if(config->p_wifi_mac){
-				memcpy(output,config->p_wifi_mac,2);	
-				output += 2;
-			}	
-		}
+        /*	encode WIFI mac address */
+        if (config->p_capability->bondAbility == 3) {
+            if (config->p_wifi_mac) {
+                memcpy(output, config->p_wifi_mac, 2);
+                output += 2;
+            }
+        }
 
         if (config->p_cap_sub_IO != NULL) {
             p_cap->IO_capability = 1;
@@ -251,14 +275,14 @@ mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
 
     }
 
-    /* encrypt objects and encode Nonce, MIC */
+    /* encrypt objects with increasing SEQNUM, then append Ext Frame CNT and MIC */
     if (p_frame_ctrl->is_encrypt == 1 ) {
-        // 7 = 3 bytes random + 4 bytes MIC
+        // 7 = 3 bytes Ext Frame CNT + 4 bytes MIC
         CHECK_ADV_LEN(len + 7);
 
         if(m_beacon_key_is_vaild) {
-            beacon_nonce.cnt = frame_cnt;
-            errno = mible_rand_num_generator(beacon_nonce.rand, 3);
+            beacon_nonce.cnt = seqnum.byte[0];
+            memcpy(beacon_nonce.ext_cnt, &seqnum.byte[1], 3);
             
             if (errno != MI_SUCCESS) {
                 MI_ERR_CHECK(errno);
@@ -275,8 +299,8 @@ mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
                            (uint8_t*)p_obj_head,
                                             mic, 4);
             
-            memcpy(output, beacon_nonce.rand, 3);
-            output += sizeof(beacon_nonce.rand);
+            memcpy(output, beacon_nonce.ext_cnt, 3);
+            output += sizeof(beacon_nonce.ext_cnt);
 
             memcpy(output, mic, sizeof(mic));
             output += sizeof(mic);
@@ -287,6 +311,7 @@ mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
         }
     }
 
+    /*  encode mesh data */
     if (config->p_mesh != NULL) {
         CHECK_ADV_LEN(len + sizeof(mibeacon_mesh_t));
         p_frame_ctrl->mesh = 1;

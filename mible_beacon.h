@@ -9,7 +9,7 @@
 #define MIBLE_MAX_ADV_LENGTH                        31
 
 typedef struct {
-    uint8_t         time_protocol       :1;
+    uint8_t         reserved0           :1;
     uint8_t         reserved1           :1;
     uint8_t         reserved2           :1;
     uint8_t         is_encrypt          :1;
@@ -19,10 +19,9 @@ typedef struct {
     uint8_t         obj_include         :1;
     uint8_t         mesh                :1;
 
-    uint8_t         reserved4           :1;
+    uint8_t         registered          :1;
     uint8_t         bond_confirm        :1;
-    uint8_t         secure_auth         :1;
-    uint8_t         secure_login        :1;
+    uint8_t         auth_mode           :2;
 
     uint8_t         version             :4;
 } mibeacon_frame_ctrl_t;
