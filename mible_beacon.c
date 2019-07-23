@@ -12,10 +12,20 @@
 
 #ifdef USE_MI_CONFIG
 #include "mi_config.h"
-#else
-#define EVT_ADV_TIMEOUT_MS     3000
-#define EVT_QUEUE_SIZE         8
 #endif
+
+#ifndef OBJ_QUEUE_SIZE
+#define OBJ_QUEUE_SIZE                 8
+#endif
+
+#ifndef OBJ_ADV_INTERVAL_MS
+#define OBJ_ADV_INTERVAL_MS            200
+#endif
+
+#ifndef OBJ_ADV_TIMEOUT_MS
+#define OBJ_ADV_TIMEOUT_MS             3000
+#endif
+
 
 #define BLE_UUID_MI_SERVICE                         0xFE95
 #define BLE_UUID_COMPANY_ID_XIAOMI                  0x038F
@@ -25,6 +35,7 @@
 #define HI_BYTE(val) (uint8_t)(val>>8)
 #define IS_POWER_OF_TWO(A) ( ((A) != 0) && ((((A) - 1) & (A)) == 0) )
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+#define MSEC_TO_UNITS(TIME, RESOLUTION) (((TIME) * 1000) / (RESOLUTION))
 #define CHECK_ADV_LEN(len)                                                     \
     do {                                                                       \
         if ((len) > MIBLE_MAX_ADV_LENGTH)                                      \
@@ -33,9 +44,15 @@
 
 
 static void * mibeacon_timer;
-static volatile bool m_beacon_is_init;
-static volatile bool m_beacon_timer_is_running;
-static volatile bool m_beacon_key_is_vaild;
+
+static struct {
+    uint8_t is_init      :1;
+    uint8_t is_sending   :1;
+    uint8_t is_valid_key :1;
+    uint8_t stop_adv_after_sent_out :1;
+    uint8_t rfu          :4;
+} flags;
+
 static uint8_t beacon_key[16];
 static queue_t mi_obj_queue;
 static union {
@@ -95,7 +112,6 @@ static void mibeacon_timer_handler(void * p_context)
         .frame_ctrl     = fctrl,
         .pid            = beacon_nonce.pid,
         .p_mac          = &dev_mac,
-        .p_capability   = &cap
     };
 
     mibeacon_obj_t obj = {0};
@@ -105,16 +121,22 @@ static void mibeacon_timer_handler(void * p_context)
     uint8_t adv_dlen     = 3;
 
     if (errno != MI_SUCCESS) {
-        mible_timer_stop(mibeacon_timer);
-        m_beacon_timer_is_running = false;
+        flags.is_sending = false;
+
+        beacon_cfg.p_capability = &cap;
         mible_service_data_set(&beacon_cfg, adv_data + 3, &len);
         adv_dlen += len;
 
-        errno = mible_gap_adv_data_set(adv_data, adv_dlen, adv_data, 0);
-        MI_ERR_CHECK(errno);
+        mible_gap_adv_data_set(adv_data, adv_dlen, adv_data, 0);
+
+        if (flags.stop_adv_after_sent_out) {
+            mible_gap_adv_stop();
+            MI_LOG_INFO("stop adv obj.\n");
+        }
+
         MI_LOG_INFO("no more mibeacon obj.\n");
     } else {
-        mible_timer_start(mibeacon_timer, EVT_ADV_TIMEOUT_MS, NULL);
+        mible_timer_start(mibeacon_timer, OBJ_ADV_TIMEOUT_MS, NULL);
 
         // encode adv packet.
         if (obj.need_encrypt) {
@@ -123,7 +145,6 @@ static void mibeacon_timer_handler(void * p_context)
         } else if (obj.len > 9) {
             beacon_cfg.p_mac = NULL;
         }
-        beacon_cfg.p_capability = NULL;
         beacon_cfg.p_obj        = &obj;
         beacon_cfg.obj_num      = 1;
         errno = mible_service_data_set(&beacon_cfg, adv_data + 3, &len);
@@ -154,14 +175,14 @@ static void mibeacon_timer_handler(void * p_context)
 void set_beacon_key(uint8_t *p_key)
 {
     if (p_key == NULL) {
-        m_beacon_key_is_vaild = 0;
+        flags.is_valid_key = 0;
     } else {
         mible_gap_address_get(beacon_nonce.mac);
         memcpy(beacon_key, p_key, sizeof(beacon_key));
-        m_beacon_key_is_vaild = 1;
+        flags.is_valid_key = 1;
     }
 
-    if (m_beacon_is_init) {
+    if (flags.is_init) {
         seqnum.value = 0;
         mible_record_write(REC_ID_SEQNUM, seqnum.byte, 4);
     }
@@ -169,7 +190,7 @@ void set_beacon_key(uint8_t *p_key)
 
 mible_status_t mibeacon_init(uint8_t *key)
 {
-    static mibeacon_obj_t obj_buf[EVT_QUEUE_SIZE];
+    static mibeacon_obj_t obj_buf[OBJ_QUEUE_SIZE];
     mible_status_t errno;
 
     errno = queue_init(&mi_obj_queue, (void*) obj_buf, ARRAY_SIZE(obj_buf), sizeof(obj_buf[0]));
@@ -189,7 +210,7 @@ mible_status_t mibeacon_init(uint8_t *key)
 
     MI_LOG_DEBUG("init mibeacon with SEQNUM: %d\n", seqnum.value);
 
-    m_beacon_is_init = 1;
+    flags.is_init = 1;
     return errno;
 }
 
@@ -280,7 +301,7 @@ mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
         // 7 = 3 bytes Ext Frame CNT + 4 bytes MIC
         CHECK_ADV_LEN(len + 7);
 
-        if(m_beacon_key_is_vaild) {
+        if(flags.is_valid_key) {
             beacon_nonce.cnt = seqnum.byte[0];
             memcpy(beacon_nonce.ext_cnt, &seqnum.byte[1], 3);
             
@@ -363,12 +384,12 @@ mible_status_t mible_service_data_set(mibeacon_config_t const * const config,
 }
 
 /*
- * @brief   Set <manufacturer> data. 
- * @param   [in] config: mibeacon configure data 
- *          [out] p_output: pointer to mibeacon data  (watch out array out of bounds) 
- *          [out] p_output_len: pointer to mibeacon data length  
- * @return  MI_ERR_INVALID_PARAM:   Invalid pointer supplied.  
- *          MI_ERR_INVALID_LENGTH:  Data length exceeds MIBLE_MAX_ADV_LENGTH. 
+ * @brief   Set <manufacturer> data.
+ * @param   [in] config: mibeacon configure data
+ *          [out] p_output: pointer to mibeacon data  (watch out array out of bounds)
+ *          [out] p_output_len: pointer to mibeacon data length
+ * @return  MI_ERR_INVALID_PARAM:   Invalid pointer supplied.
+ *          MI_ERR_INVALID_LENGTH:  Data length exceeds MIBLE_MAX_ADV_LENGTH.
  *          MI_SUCCESS:             Set successfully.
  * @Note:   p_obj[obj_num-1]
  * */
@@ -399,6 +420,7 @@ mible_status_t mible_manu_data_set(mibeacon_config_t const * const config,
     return MI_SUCCESS;
 }
 
+
 int mibeacon_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val)
 {
     uint32_t errno;
@@ -418,20 +440,23 @@ int mibeacon_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val)
         return MI_ERR_RESOURCES;
     }
 
-    if (m_beacon_timer_is_running != true ) {
+    flags.stop_adv_after_sent_out = 0;
+
+    if (flags.is_sending != true ) {
         /* All event will be processed in mibeacon_timer_handler() */
         errno = mible_timer_start(mibeacon_timer, 10, NULL);
         MI_ERR_CHECK(errno);
         if (errno != MI_SUCCESS)
             return MI_ERR_INTERNAL;
         else
-            m_beacon_timer_is_running = true;
+            flags.is_sending = true;
     }
 
     return MI_SUCCESS;
 }
 
-int mibeacon_plain_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val)
+
+int mibeacon_obj_enque_oneshot(mibeacon_obj_name_t nm, uint8_t len, void *val)
 {
     uint32_t errno;
     mibeacon_obj_t obj;
@@ -441,7 +466,7 @@ int mibeacon_plain_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val)
 
     obj.type = nm;
     obj.len  = len;
-    obj.need_encrypt = 0;
+    obj.need_encrypt = 1;
     memcpy(obj.val, (uint8_t*)val, len);
 
     errno = enqueue(&mi_obj_queue, &obj);
@@ -450,14 +475,27 @@ int mibeacon_plain_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val)
         return MI_ERR_RESOURCES;
     }
 
-    if (m_beacon_timer_is_running != true ) {
+    if (flags.stop_adv_after_sent_out == 0) {
+        flags.stop_adv_after_sent_out = 1;
+        mible_gap_adv_stop();
+    }
+
+    if (flags.is_sending != true) {
+        mible_gap_adv_param_t param = {
+                .adv_interval_max = MSEC_TO_UNITS(OBJ_ADV_INTERVAL_MS, 625),
+                .adv_interval_min = MSEC_TO_UNITS(OBJ_ADV_INTERVAL_MS, 625),
+                .adv_type = MIBLE_ADV_TYPE_CONNECTABLE_UNDIRECTED
+        };
+
+        mible_gap_adv_start(&param);
+
         /* All event will be processed in mibeacon_timer_handler() */
         errno = mible_timer_start(mibeacon_timer, 10, NULL);
         MI_ERR_CHECK(errno);
         if (errno != MI_SUCCESS)
             return MI_ERR_INTERNAL;
         else
-            m_beacon_timer_is_running = true;
+            flags.is_sending = true;
     }
 
     return MI_SUCCESS;

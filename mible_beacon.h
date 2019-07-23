@@ -99,6 +99,8 @@ typedef struct {
     mibeacon_mesh_t        *p_mesh;
 } mibeacon_config_t;
 
+void set_beacon_key(uint8_t *p_key);
+
 mible_status_t mibeacon_init(uint8_t *key);
 
 mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
@@ -110,8 +112,57 @@ mible_status_t mible_service_data_set(mibeacon_config_t const * const config,
 mible_status_t mible_manu_data_set(mibeacon_config_t const * const config,
         uint8_t *p_output, uint8_t *p_output_len);
 
+/**
+ * @brief   Enqueue a object value into the mibeacon object queue.
+ *
+ * @param   [in] nm:  object id name
+ *          [in] len: length of the object value
+ *          [in] val: pointer to the object value
+ *
+ * @return  MI_SUCCESS             Successfully enqueued a object into the object queue.
+ *          MI_ERR_DATA_SIZE       Object value length is too long.
+ *          MI_ERR_RESOURCES       Object queue is full. Please try again later.
+ *          MI_ERR_INTERNAL        Can not invoke the sending handler.
+ *
+ * @note    This function ONLY works when the device has been registered and has restored the keys.
+ *
+ * The mibeacon object is an adv message contains the status or event. BLE gateway
+ * can receive the beacon message (by BLE scanning) and upload it to server for
+ * triggering customized home automation scene.
+ *
+ * OBJ_QUEUE_SIZE      : max num of objects can be concurrency advertising
+ *                      ( actually, it will be sent one by one )
+ * OBJ_ADV_INTERVAL    : the object adv interval
+ * OBJ_ADV_TIMEOUT_MS  : the time one object will be continuously sent.
+ *
+ * */
 int mibeacon_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val);
-int mibeacon_plain_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val);
-void set_beacon_key(uint8_t *p_key);
+
+/**
+ * @brief   Enqueue a object value into the mibeacon object queue.
+ * When the object queue is sent out, it will turn off BLE advertising.
+ *
+ * @param   [in] nm:  object id name
+ *          [in] len: length of the object value
+ *          [in] val: pointer to the object value
+ *
+ * @return  MI_SUCCESS             Successfully enqueued a object into the object queue.
+ *          MI_ERR_DATA_SIZE       Object value length is too long.
+ *          MI_ERR_RESOURCES       Object queue is full. Please try again later.
+ *          MI_ERR_INTERNAL        Can not invoke the sending handler.
+ *
+ * @note    This function ONLY works when the device has been registered and has restored the keys.
+ *
+ * The mibeacon object is an adv message contains the status or event. BLE gateway
+ * can receive the beacon message (by BLE scanning) and upload it to server for
+ * triggering customized home automation scene.
+ *
+ * OBJ_QUEUE_SIZE      : max num of objects can be concurrency advertising
+ *                      ( actually, it will be sent one by one )
+ * OBJ_ADV_INTERVAL    : the object adv interval
+ * OBJ_ADV_TIMEOUT_MS  : the time one object will be continuously sent.
+ *
+ * */
+int mibeacon_obj_enque_oneshot(mibeacon_obj_name_t nm, uint8_t len, void *val);
 
 #endif
