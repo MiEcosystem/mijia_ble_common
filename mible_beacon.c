@@ -95,8 +95,11 @@ static void mibeacon_timer_handler(void * p_context)
     uint32_t errno;
     uint8_t len;
     mibeacon_frame_ctrl_t fctrl = {
-            .registered     = 1,
+#if defined(ENABLE_REPLAY_PROTECT) && (ENABLE_REPLAY_PROTECT)
             .version        = 5,
+#else
+            .version        = 4,
+#endif
     };
 
     mibeacon_capability_t cap = {
@@ -178,6 +181,7 @@ void set_beacon_key(uint8_t *p_key)
         flags.is_valid_key = 0;
     } else {
         mible_gap_address_get(beacon_nonce.mac);
+        beacon_nonce.pid = PRODUCT_ID;
         memcpy(beacon_key, p_key, sizeof(beacon_key));
         flags.is_valid_key = 1;
     }
@@ -214,41 +218,26 @@ mible_status_t mibeacon_init(uint8_t *key)
     return errno;
 }
 
-/*
- * @brief   set mibeacon service data  
- * @param   [in] config: mibeacon configure data 
- *          [out] p_output: pointer to mibeacon data  (watch out array out of bounds) 
- *          [out] p_output_len: pointer to mibeacon data length 
- * @return  MI_ERR_INVALID_PARAM:   Invalid pointer supplied or mismatched frame_ctrl.
- *          MI_ERR_INVALID_LENGTH:  Adv data length exceeds MIBLE_MAX_ADV_LENGTH-7.
- *          MI_ERR_INTERNAL:        Not found rand num used to encrypt data.
- *          MI_SUCCESS:             Set successfully.
- * */
-mible_status_t mibeacon_data_set(mibeacon_config_t const * const config, 
+
+mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
         uint8_t *output, uint8_t *output_len)
 {
-    mibeacon_frame_ctrl_t *p_frame_ctrl = (void*)output;
-    uint8_t len, *p_obj_head = NULL, *head = output;
+    mibeacon_frame_ctrl_t * const p_frame_ctrl = (void*)output;
     uint32_t errno = 0;
-    
+
     if (config == NULL || output == NULL || output_len == NULL) {
         return MI_ERR_INVALID_PARAM;
     }
 
-    beacon_nonce.pid = config->pid;
-
-    if (++seqnum.value % 512 == 0)
-        mible_record_write(REC_ID_SEQNUM, seqnum.byte, 4);
-
-    MI_LOG_DEBUG("mibeacon - SEQNUM: %d\n", seqnum.value);
-
     /*  encode frame_ctrl and product_id */
     memcpy(output, (uint8_t*)config, 4);
+    output[0]   = 0;
     output     += 4;
 
     /*  encode frame cnt */
-    output[0] = (uint8_t) seqnum.value;
-    output   += 1;
+    if (++seqnum.value % 512 == 0)
+        mible_record_write(REC_ID_SEQNUM, seqnum.byte, 4);
+    *output++ = (uint8_t) seqnum.value;
 
     /*  encode gap mac */
     if (config->p_mac != NULL) {
@@ -264,97 +253,81 @@ mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
         output += 1;
         *p_cap = *config->p_capability;
 
-        /*	encode WIFI mac address */
-        if (config->p_capability->bondAbility == 3) {
-            if (config->p_wifi_mac) {
-                memcpy(output, config->p_wifi_mac, 2);
-                output += 2;
-            }
+        /*  encode WIFI MAC address */
+        if (config->p_wifi_mac != NULL) {
+            p_cap->bondAbility = 3;
+            memcpy(output, config->p_wifi_mac, 2);
+            output += 2;
         }
 
+        /*  encode IO cap */
         if (config->p_cap_sub_IO != NULL) {
             p_cap->IO_capability = 1;
             memcpy(output, config->p_cap_sub_IO, sizeof(mibeacon_cap_sub_io_t));
             output += sizeof(mibeacon_cap_sub_io_t);
         }
-
     }
-    
-    len = output - head;
-    CHECK_ADV_LEN(len);
 
-    /*  encode objects */
+    /*  encode encrypted objects */
     if (config->p_obj != NULL) {
-        CHECK_ADV_LEN(len + calc_objs_bytes(config->p_obj, config->obj_num));
+        if (!flags.is_valid_key)
+            return MI_ERR_INVALID_STATE;
+
+        uint8_t *objs_ptr = output;
+        uint8_t  objs_len = calc_objs_bytes(config->p_obj, config->obj_num);
+        // 7 = 3 bytes ext frame cnt + 4 bytes MIC
+        CHECK_ADV_LEN(output - (uint8_t*)p_frame_ctrl + objs_len + 7);
+
+        // append plain objects
         p_frame_ctrl->obj_include = 1;
-        p_obj_head = output;
         for (uint8_t i = 0, max = config->obj_num; i < max; i++) {
             event_encode(config->p_obj + i, output);
+            // 3 = 2 bytes object ID + 1 byte length
             output += 3 + config->p_obj[i].len;
         }
-        len = output - head;
 
-    }
+        // append ext frame cnt
+        beacon_nonce.cnt = seqnum.byte[0];
+        memcpy(beacon_nonce.ext_cnt, &seqnum.byte[1], 3);
+        memcpy(output, beacon_nonce.ext_cnt, 3);
+        output += sizeof(beacon_nonce.ext_cnt);
 
-    /* encrypt objects with increasing SEQNUM, then append Ext Frame CNT and MIC */
-    if (p_frame_ctrl->is_encrypt == 1 ) {
-        // 7 = 3 bytes Ext Frame CNT + 4 bytes MIC
-        CHECK_ADV_LEN(len + 7);
-
-        if(flags.is_valid_key) {
-            beacon_nonce.cnt = seqnum.byte[0];
-            memcpy(beacon_nonce.ext_cnt, &seqnum.byte[1], 3);
-            
-            if (errno != MI_SUCCESS) {
-                MI_ERR_CHECK(errno);
-                return MI_ERR_INTERNAL;
-            }
-
-            uint8_t mic[4];
-            uint8_t aad = 0x11;
-            uint8_t objs_len = output - p_obj_head;
-            aes_ccm_encrypt_and_tag(beacon_key,
-                        (uint8_t*)&beacon_nonce, sizeof(beacon_nonce),
-                                           &aad, sizeof(aad),
-                           (uint8_t*)p_obj_head, objs_len,
-                           (uint8_t*)p_obj_head,
-                                            mic, 4);
-            
-            memcpy(output, beacon_nonce.ext_cnt, 3);
-            output += sizeof(beacon_nonce.ext_cnt);
-
-            memcpy(output, mic, sizeof(mic));
-            output += sizeof(mic);
-            len = output - head;
-        } else {
-            p_frame_ctrl->is_encrypt = 0;
+        // encrypt the objects
+        p_frame_ctrl->is_encrypt  = 1;
+        uint8_t mic[4];
+        uint8_t aad = 0x11;
+        errno = aes_ccm_encrypt_and_tag(beacon_key,
+                    (uint8_t*)&beacon_nonce, sizeof(beacon_nonce),
+                                       &aad, sizeof(aad),
+                                   objs_ptr, objs_len,
+                                   objs_ptr,
+                                        mic, 4);
+        MI_ERR_CHECK(errno);
+        if (errno)
             return MI_ERR_INTERNAL;
-        }
+
+        // append MIC
+        memcpy(output, mic, sizeof(mic));
+        output += sizeof(mic);
+    } else {
+        p_frame_ctrl->is_encrypt  = 0;
+        p_frame_ctrl->obj_include = 0;
     }
 
-    /*  encode mesh data */
+    /*  encode mesh info */
     if (config->p_mesh != NULL) {
-        CHECK_ADV_LEN(len + sizeof(mibeacon_mesh_t));
+        CHECK_ADV_LEN(output - (uint8_t*)p_frame_ctrl + sizeof(mibeacon_mesh_t));
         p_frame_ctrl->mesh = 1;
         memcpy(output, config->p_mesh, sizeof(mibeacon_mesh_t));
         output += sizeof(mibeacon_mesh_t);
-        len = output - head;
     }
 
-    *output_len = len;
+    *output_len = output - (uint8_t*)p_frame_ctrl;
 
     return MI_SUCCESS;
 }
 
-/*
- * @brief   Set <service data>. 
- * @param   [in] config: mibeacon configure data 
- *          [out] p_output: pointer to mibeacon data  (watch out array out of bounds) 
- *          [out] p_output_len: pointer to mibeacon data length 
- * @return  MI_ERR_INVALID_PARAM:   Invalid pointer supplied.  
- *          MI_SUCCESS:             Set successfully.
- *          MI_ERR_DATA_SIZE:       Adv bytes excceed the maximun.
- * */
+
 mible_status_t mible_service_data_set(mibeacon_config_t const * const config,
         uint8_t *p_output, uint8_t *p_output_len)
 {
@@ -383,16 +356,7 @@ mible_status_t mible_service_data_set(mibeacon_config_t const * const config,
     return MI_SUCCESS;
 }
 
-/*
- * @brief   Set <manufacturer> data.
- * @param   [in] config: mibeacon configure data
- *          [out] p_output: pointer to mibeacon data  (watch out array out of bounds)
- *          [out] p_output_len: pointer to mibeacon data length
- * @return  MI_ERR_INVALID_PARAM:   Invalid pointer supplied.
- *          MI_ERR_INVALID_LENGTH:  Data length exceeds MIBLE_MAX_ADV_LENGTH.
- *          MI_SUCCESS:             Set successfully.
- * @Note:   p_obj[obj_num-1]
- * */
+
 mible_status_t mible_manu_data_set(mibeacon_config_t const * const config,
         uint8_t *p_output, uint8_t *p_output_len)
 {
@@ -425,6 +389,9 @@ int mibeacon_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val)
 {
     uint32_t errno;
     mibeacon_obj_t obj;
+
+    if (!flags.is_valid_key)
+        return MI_ERR_INVALID_STATE;
 
     if (len > sizeof(obj.val))
         return MI_ERR_DATA_SIZE;
@@ -460,6 +427,9 @@ int mibeacon_obj_enque_oneshot(mibeacon_obj_name_t nm, uint8_t len, void *val)
 {
     uint32_t errno;
     mibeacon_obj_t obj;
+
+    if (!flags.is_valid_key)
+        return MI_ERR_INVALID_STATE;
 
     if (len > sizeof(obj.val))
         return MI_ERR_DATA_SIZE;

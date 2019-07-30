@@ -13,7 +13,6 @@ typedef struct {
     uint8_t         reserved1           :1;
     uint8_t         reserved2           :1;
     uint8_t         is_encrypt          :1;
-
     uint8_t         mac_include         :1;
     uint8_t         cap_include         :1;
     uint8_t         obj_include         :1;
@@ -22,7 +21,6 @@ typedef struct {
     uint8_t         registered          :1;
     uint8_t         bond_confirm        :1;
     uint8_t         auth_mode           :2;
-
     uint8_t         version             :4;
 } mibeacon_frame_ctrl_t;
 
@@ -74,7 +72,6 @@ typedef struct {
     uint8_t out_alphabet         :1;
     uint8_t out_nfc_tag          :1;
     uint8_t out_image            :1;
-
     uint8_t reserved             :8;
 } mibeacon_cap_sub_io_t;
 
@@ -83,7 +80,6 @@ typedef struct {
     uint8_t         pb_gatt      :1;
     uint8_t         state        :2;
     uint8_t         version      :4;
-
     uint8_t         reserved     :8;
 } mibeacon_mesh_t;
 
@@ -103,12 +99,41 @@ void set_beacon_key(uint8_t *p_key);
 
 mible_status_t mibeacon_init(uint8_t *key);
 
+/*
+ * @brief   set mibeacon service data
+ * @param   [in] config: mibeacon configure data
+ *          [out] p_output: pointer to mibeacon data  (watch out array out of bounds)
+ *          [out] p_output_len: pointer to mibeacon data length
+ * @return  MI_ERR_INVALID_PARAM:   Invalid pointer supplied or mismatched frame_ctrl.
+ *          MI_ERR_INVALID_LENGTH:  Adv data length exceeds MIBLE_MAX_ADV_LENGTH-7.
+ *          MI_ERR_INTERNAL:        Not found rand num used to encrypt data.
+ *          MI_SUCCESS:             Set successfully.
+ * */
 mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
         uint8_t *p_output, uint8_t *p_output_len);
 
+/*
+ * @brief   Set <service data>.
+ * @param   [in] config: mibeacon configure data
+ *          [out] p_output: pointer to mibeacon data  (watch out array out of bounds)
+ *          [out] p_output_len: pointer to mibeacon data length
+ * @return  MI_ERR_INVALID_PARAM:   Invalid pointer supplied.
+ *          MI_SUCCESS:             Set successfully.
+ *          MI_ERR_DATA_SIZE:       Adv bytes excceed the maximun.
+ * */
 mible_status_t mible_service_data_set(mibeacon_config_t const * const config,
         uint8_t *p_output, uint8_t *p_output_len);
 
+/*
+ * @brief   Set <manufacturer> data.
+ * @param   [in] config: mibeacon configure data
+ *          [out] p_output: pointer to mibeacon data  (watch out array out of bounds)
+ *          [out] p_output_len: pointer to mibeacon data length
+ * @return  MI_ERR_INVALID_PARAM:   Invalid pointer supplied.
+ *          MI_ERR_INVALID_LENGTH:  Data length exceeds MIBLE_MAX_ADV_LENGTH.
+ *          MI_SUCCESS:             Set successfully.
+ * @Note:   p_obj[obj_num-1]
+ * */
 mible_status_t mible_manu_data_set(mibeacon_config_t const * const config,
         uint8_t *p_output, uint8_t *p_output_len);
 
