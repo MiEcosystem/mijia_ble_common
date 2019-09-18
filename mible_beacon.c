@@ -126,16 +126,16 @@ static void mibeacon_timer_handler(void * p_context)
     if (errno != MI_SUCCESS) {
         flags.is_sending = false;
 
+        if (flags.stop_adv_after_sent_out) {
+            mible_gap_adv_stop();
+            MI_LOG_INFO("stop adv obj.\n");
+        }
+
         beacon_cfg.p_capability = &cap;
         mible_service_data_set(&beacon_cfg, adv_data + 3, &len);
         adv_dlen += len;
 
         mible_gap_adv_data_set(adv_data, adv_dlen, adv_data, 0);
-
-        if (flags.stop_adv_after_sent_out) {
-            mible_gap_adv_stop();
-            MI_LOG_INFO("stop adv obj.\n");
-        }
 
         MI_LOG_INFO("no more mibeacon obj.\n");
     } else {
@@ -324,6 +324,103 @@ mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
 
     *output_len = output - (uint8_t*)p_frame_ctrl;
 
+    return MI_SUCCESS;
+}
+
+mible_status_t fastpair_data_set(mibeacon_config_t const * const config,
+        uint8_t *output, uint8_t *output_len)
+{
+    mibeacon_frame_ctrl_t * const p_frame_ctrl = (void*)(output + 4);
+    //uint32_t errno = 0;
+
+    if (config == NULL || output == NULL || output_len == NULL) {
+				MI_LOG_ERROR("error parameters.\n");
+        return MI_ERR_INVALID_PARAM;
+    }
+
+		output[1] = 0x16;
+    output[2] = LO_BYTE(BLE_UUID_MI_SERVICE);
+    output[3] = HI_BYTE(BLE_UUID_MI_SERVICE);
+		output     += 4;
+		
+    /*  encode frame_ctrl and product_id */
+    memcpy(output, (uint8_t*)config, 4);
+    output[0]   = 0;
+    output     += 4;
+
+    /*  encode frame cnt */
+    if (++seqnum.value % 512 == 0)
+        mible_record_write(REC_ID_SEQNUM, seqnum.byte, 4);
+    *output++ = (uint8_t) seqnum.value;
+
+    /*  encode gap mac */
+    if (config->p_mac != NULL) {
+        p_frame_ctrl->mac_include = 1;
+        memcpy(output, config->p_mac, 6);
+        output += 6;
+    }
+
+    /*  encode capability */
+    if (config->p_capability != NULL) {
+        p_frame_ctrl->cap_include = 1;
+        mibeacon_capability_t *p_cap = (void*)output;
+        output += 1;
+        *p_cap = *config->p_capability;
+
+        /*  encode WIFI MAC address */
+        if (config->p_wifi_mac != NULL) {
+            p_cap->bondAbility = 3;
+            memcpy(output, config->p_wifi_mac, 2);
+            output += 2;
+        }
+
+        /*  encode IO cap */
+        if (config->p_cap_sub_IO != NULL) {
+            p_cap->IO_capability = 1;
+            memcpy(output, config->p_cap_sub_IO, sizeof(mibeacon_cap_sub_io_t));
+            output += sizeof(mibeacon_cap_sub_io_t);
+        }
+    }
+
+    /*  encode uncrypted objects */
+    if (config->p_obj != NULL) {
+
+        //uint8_t *objs_ptr = output;
+        uint8_t  objs_len = calc_objs_bytes(config->p_obj, config->obj_num);
+        // 7 = 3 bytes ext frame cnt + 4 bytes MIC
+        CHECK_ADV_LEN(output - (uint8_t*)p_frame_ctrl + objs_len);
+
+				if(MI_EVT_SIMPLE_PAIR != config->p_obj->type){
+						MI_LOG_ERROR("Error type.\n");
+						return MI_ERR_INVALID_PARAM;
+				}
+				
+        // append plain objects
+        p_frame_ctrl->obj_include = 1;
+        for (uint8_t i = 0, max = config->obj_num; i < max; i++) {
+            event_encode(config->p_obj + i, output);
+            // 3 = 2 bytes object ID + 1 byte length
+            output += 3 + config->p_obj[i].len;
+        }
+				
+    } else {
+        p_frame_ctrl->is_encrypt  = 0;
+        p_frame_ctrl->obj_include = 0;
+				MI_LOG_ERROR("no object.\n");
+        return MI_ERR_INVALID_PARAM;
+    }
+
+    /*  encode mesh info */
+    if (config->p_mesh != NULL) {
+        CHECK_ADV_LEN(output - (uint8_t*)p_frame_ctrl + sizeof(mibeacon_mesh_t));
+        p_frame_ctrl->mesh = 1;
+        memcpy(output, config->p_mesh, sizeof(mibeacon_mesh_t));
+        output += sizeof(mibeacon_mesh_t);
+    }
+		
+    *output_len = output - (uint8_t*)p_frame_ctrl + 4;
+		*((uint8_t*)p_frame_ctrl - 4) = *output_len - 1;
+		
     return MI_SUCCESS;
 }
 

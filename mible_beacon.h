@@ -112,6 +112,8 @@ mible_status_t mibeacon_init(uint8_t *key);
 mible_status_t mibeacon_data_set(mibeacon_config_t const * const config,
         uint8_t *p_output, uint8_t *p_output_len);
 
+mible_status_t fastpair_data_set(mibeacon_config_t const * const config,
+        uint8_t *p_output, uint8_t *p_output_len);
 /*
  * @brief   Set <service data>.
  * @param   [in] config: mibeacon configure data
