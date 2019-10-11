@@ -79,7 +79,7 @@ static void mibeacon_timer_handler(void * p_context)
     uint8_t len;
     mibeacon_frame_ctrl_t fctrl = {
             .registered     = 1,
-            .version        = 5,
+            .version        = (uint8_t)p_context,
     };
 
     mibeacon_capability_t cap = {
@@ -114,7 +114,7 @@ static void mibeacon_timer_handler(void * p_context)
         MI_ERR_CHECK(errno);
         MI_LOG_INFO("no more mibeacon obj.\n");
     } else {
-        mible_timer_start(mibeacon_timer, EVT_ADV_TIMEOUT_MS, NULL);
+        mible_timer_start(mibeacon_timer, EVT_ADV_TIMEOUT_MS, p_context);
 
         // encode adv packet.
         if (obj.need_encrypt) {
@@ -399,7 +399,20 @@ mible_status_t mible_manu_data_set(mibeacon_config_t const * const config,
     return MI_SUCCESS;
 }
 
-int mibeacon_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val)
+/* CAUTION !
+ *
+ * THIS API SHOULD ONLY BE USED FOR TESTING PURPOSE, MUST NOT BE USED IN PRODUCT.
+ */
+void test_mibeacon_sn_reset()
+{
+    seqnum.value = 0;
+}
+
+/* CAUTION !
+ *
+ * THIS API SHOULD ONLY BE USED FOR TESTING PURPOSE, MUST NOT BE USED IN PRODUCT.
+ */
+int test_mibeacon_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val, uint8_t version)
 {
     uint32_t errno;
     mibeacon_obj_t obj;
@@ -420,7 +433,7 @@ int mibeacon_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val)
 
     if (m_beacon_timer_is_running != true ) {
         /* All event will be processed in mibeacon_timer_handler() */
-        errno = mible_timer_start(mibeacon_timer, 10, NULL);
+        errno = mible_timer_start(mibeacon_timer, 10, (void*)version);
         MI_ERR_CHECK(errno);
         if (errno != MI_SUCCESS)
             return MI_ERR_INTERNAL;
@@ -431,7 +444,11 @@ int mibeacon_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val)
     return MI_SUCCESS;
 }
 
-int mibeacon_plain_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val)
+/* CAUTION !
+ *
+ * THIS API SHOULD ONLY BE USED FOR TESTING PURPOSE, MUST NOT BE USED IN PRODUCT.
+ */
+int test_mibeacon_plain_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val)
 {
     uint32_t errno;
     mibeacon_obj_t obj;
@@ -452,7 +469,7 @@ int mibeacon_plain_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val)
 
     if (m_beacon_timer_is_running != true ) {
         /* All event will be processed in mibeacon_timer_handler() */
-        errno = mible_timer_start(mibeacon_timer, 10, NULL);
+        errno = mible_timer_start(mibeacon_timer, 10, (void*)5);
         MI_ERR_CHECK(errno);
         if (errno != MI_SUCCESS)
             return MI_ERR_INTERNAL;
@@ -462,3 +479,5 @@ int mibeacon_plain_obj_enque(mibeacon_obj_name_t nm, uint8_t len, void *val)
 
     return MI_SUCCESS;
 }
+
+
