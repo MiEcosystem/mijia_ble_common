@@ -334,14 +334,14 @@ mible_status_t fastpair_data_set(mibeacon_config_t const * const config,
     //uint32_t errno = 0;
 
     if (config == NULL || output == NULL || output_len == NULL) {
-				MI_LOG_ERROR("error parameters.\n");
+        MI_LOG_ERROR("error parameters.\n");
         return MI_ERR_INVALID_PARAM;
     }
 
-		output[1] = 0x16;
+    output[1] = 0x16;
     output[2] = LO_BYTE(BLE_UUID_MI_SERVICE);
     output[3] = HI_BYTE(BLE_UUID_MI_SERVICE);
-		output     += 4;
+    output     += 4;
 		
     /*  encode frame_ctrl and product_id */
     memcpy(output, (uint8_t*)config, 4);
@@ -390,10 +390,10 @@ mible_status_t fastpair_data_set(mibeacon_config_t const * const config,
         // 7 = 3 bytes ext frame cnt + 4 bytes MIC
         CHECK_ADV_LEN(output - (uint8_t*)p_frame_ctrl + objs_len);
 
-				if(MI_EVT_SIMPLE_PAIR != config->p_obj->type){
-						MI_LOG_ERROR("Error type.\n");
-						return MI_ERR_INVALID_PARAM;
-				}
+        if(MI_EVT_SIMPLE_PAIR != config->p_obj->type){
+            MI_LOG_ERROR("Error type.\n");
+            return MI_ERR_INVALID_PARAM;
+        }
 				
         // append plain objects
         p_frame_ctrl->obj_include = 1;
@@ -406,7 +406,7 @@ mible_status_t fastpair_data_set(mibeacon_config_t const * const config,
     } else {
         p_frame_ctrl->is_encrypt  = 0;
         p_frame_ctrl->obj_include = 0;
-				MI_LOG_ERROR("no object.\n");
+        MI_LOG_ERROR("no object.\n");
         return MI_ERR_INVALID_PARAM;
     }
 
@@ -419,7 +419,7 @@ mible_status_t fastpair_data_set(mibeacon_config_t const * const config,
     }
 		
     *output_len = output - (uint8_t*)p_frame_ctrl + 4;
-		*((uint8_t*)p_frame_ctrl - 4) = *output_len - 1;
+    *((uint8_t*)p_frame_ctrl - 4) = *output_len - 1;
 		
     return MI_SUCCESS;
 }
