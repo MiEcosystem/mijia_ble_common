@@ -19,11 +19,11 @@
 #endif
 
 #ifndef OBJ_ADV_INTERVAL_MS
-#define OBJ_ADV_INTERVAL_MS            200
+#define OBJ_ADV_INTERVAL_MS            20
 #endif
 
 #ifndef OBJ_ADV_TIMEOUT_MS
-#define OBJ_ADV_TIMEOUT_MS             3000
+#define OBJ_ADV_TIMEOUT_MS             600
 #endif
 
 
